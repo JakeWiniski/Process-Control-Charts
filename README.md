@@ -76,3 +76,52 @@ This repository contains Python implementations of statistical process control (
 - Adjust column names (`date_col`, `value_col`, `x_col`, `y_col`, etc.) in the scripts.  
 - Point `file_path` to your dataset.  
 - Tune parameters (`α`, `L`, `k`, `h`, `window`, `z_thresh`, `alpha`) based on process sensitivity.  
+
+flowchart TD
+  A[Data Preparation\n• Load CSV → pandas\n• Parse date/index\n• Clean/coerce numeric (handles %)\n• Optional filters (date/status)] --> B[Baseline Estimation\n• Use first N points\n• μ₀ (mean), σ₀ (std)]
+
+  B --> C{Choose Method}
+
+  %% EWMA & CUSUM
+  subgraph M1[EWMA & CUSUM Control Charts]
+    direction TB
+    C --> E1[EWMA\n• α (smoothing)\n• L (limits)\nCompute:\nEWMA_t\nUCL/LCL = μ₀ ± L·σ_EWMA]
+    E1 --> E2[Signal: EWMA_t outside UCL/LCL]
+
+    C --> C1[CUSUM (two-sided)\n• k = shift/2\n• h = decision interval\nCompute:\ncp_t, cm_t (cumulative deviations)]
+    C1 --> C2[Signal: cp_t > h or cm_t > h]
+  end
+
+  %% Rolling SPC
+  subgraph M2[Rolling SPC (Z-Score Monitoring)]
+    direction TB
+    C --> R1[Rolling Stats (window = w)\nμ_w, σ_w]
+    R1 --> R2[Z = (x - μ_w)/σ_w]
+    R2 --> R3[Outlier: |Z| > z_thresh\n±3σ band for context]
+  end
+
+  %% Rolling Correlation
+  subgraph M3[Rolling Correlation (Bivariate SPC)]
+    direction TB
+    C --> RC1[Inputs: feature_x, feature_y]
+    RC1 --> RC2[Within window w:\nPearson r]
+    RC2 --> RC3[p-value via t-test\n(df = w - 2)]
+    RC3 --> RC4[Significant if p < α]
+  end
+
+  %% Outputs
+  E2 --> O[Outputs]
+  C2 --> O
+  R3 --> O
+  RC4 --> O
+
+  subgraph O[Outputs & Interpretation]
+    direction TB
+    O1[Charts:\n• EWMA/CUSUM with limits\n• Rolling mean ±3σ band\n• Rolling r colored by significance]
+    O2[Tables:\n• Alert/Outlier rows with labels & timestamps]
+    O3[Interpretation:\n• EWMA → subtle mean shifts\n• CUSUM → persistent drifts\n• Rolling SPC → short-term anomalies\n• Rolling Corr → stability of X–Y relation]
+  end
+
+  %% Notes
+  classDef note fill:#f7f7f7,stroke:#bbb,color:#333;
+  N1:::note --- N1[(Tune params per use-case:\nα, L, k, h, w, z_thresh, α (sig))] --- O
