@@ -79,35 +79,35 @@ This repository contains Python implementations of statistical process control (
 
 ```mermaid
 flowchart TD
-  A[Data Preparation<br/>• Load CSV → pandas<br/>• Parse date/index<br/>• Clean/coerce numeric (handles %)<br/>• Optional filters (date/status)] --> B[Baseline Estimation<br/>• Use first N points<br/>• μ₀ (mean), σ₀ (std)]
+  A[Data Preparation: Load CSV, parse dates, clean numeric, apply filters] --> B[Baseline Estimation: Use first N points to compute mu0 and sigma0]
 
   B --> C{Choose Method}
 
   %% EWMA & CUSUM
   subgraph M1[EWMA & CUSUM Control Charts]
     direction TB
-    C --> E1[EWMA<br/>• α (smoothing)<br/>• L (limits)<br/>Compute EWMA_t<br/>UCL/LCL = μ₀ ± L·σ_EWMA]
-    E1 --> E2[Signal: EWMA_t outside UCL/LCL]
+    C --> E1[EWMA: alpha smoothing, L limits, UCL/LCL = mu0 ± L·sigma]
+    E1 --> E2[Signal when EWMA outside limits]
 
-    C --> C1[CUSUM (two-sided)<br/>• k = shift/2<br/>• h = decision interval<br/>Compute cp_t, cm_t (cumulative deviations)]
-    C1 --> C2[Signal: cp_t > h or cm_t > h]
+    C --> C1[CUSUM: k = shift/2, h = decision interval, track cp and cm]
+    C1 --> C2[Signal when cp > h or cm > h]
   end
 
   %% Rolling SPC
   subgraph M2[Rolling SPC (Z-Score Monitoring)]
     direction TB
-    C --> R1[Rolling Stats (window = w)<br/>μ_w, σ_w]
-    R1 --> R2[Z = (x - μ_w)/σ_w]
-    R2 --> R3[Outlier: |Z| > z_thresh<br/>±3σ band for context]
+    C --> R1[Rolling mean and std over window w]
+    R1 --> R2[Z-score = (x - mean)/std]
+    R2 --> R3[Outlier when |Z| > threshold, ±3σ band shown]
   end
 
   %% Rolling Correlation
   subgraph M3[Rolling Correlation (Bivariate SPC)]
     direction TB
-    C --> RC1[Inputs: feature_x, feature_y]
-    RC1 --> RC2[Within window w: Pearson r]
-    RC2 --> RC3[p-value via t-test (df = w - 2)]
-    RC3 --> RC4[Significant if p < α]
+    C --> RC1[Inputs: feature_x and feature_y]
+    RC1 --> RC2[Compute Pearson r within window w]
+    RC2 --> RC3[Calculate p-value via t-test]
+    RC3 --> RC4[Significant if p < alpha]
   end
 
   %% Outputs
@@ -116,13 +116,10 @@ flowchart TD
   R3 --> O
   RC4 --> O
 
-  subgraph O[Outputs & Interpretation]
+  subgraph O[Outputs and Interpretation]
     direction TB
-    O1[Charts:<br/>• EWMA/CUSUM with limits<br/>• Rolling mean ±3σ band<br/>• Rolling r colored by significance]
-    O2[Tables:<br/>• Alert/Outlier rows with labels & timestamps]
-    O3[Interpretation:<br/>• EWMA → subtle mean shifts<br/>• CUSUM → persistent drifts<br/>• Rolling SPC → short-term anomalies<br/>• Rolling Corr → stability of X–Y relation]
+    O1[Charts: EWMA/CUSUM, rolling mean ±3σ, rolling correlation]
+    O2[Tables: Alerts and outliers with labels and timestamps]
+    O3[Interpretation: EWMA detects subtle shifts, CUSUM persistent drifts, Rolling SPC short anomalies, Rolling Corr stability of relationships]
   end
 
-  %% Notes
-  classDef note fill:#f7f7f7,stroke:#bbb,color:#333;
-  N1:::note --- N1[(Tune parameters:<br/>α, L, k, h, w, z_thresh, α (sig))] --- O
