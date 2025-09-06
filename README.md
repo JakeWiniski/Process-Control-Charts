@@ -79,47 +79,23 @@ This repository contains Python implementations of statistical process control (
 
 ```mermaid
 flowchart TD
-  A[Data Preparation: Load CSV, parse dates, clean numeric, apply filters] --> B[Baseline Estimation: Use first N points to compute mu0 and sigma0]
+  A[Data preparation: load CSV, parse dates, clean numeric, optional filters] --> B[Baseline estimation: first N points -> mu0, sigma0]
+  B --> C{Choose method}
 
-  B --> C{Choose Method}
+  C --> E[EWMA: alpha, L -> limits from mu0 and sigma]
+  E --> E_sig[Signal: EWMA outside limits]
 
-  %% EWMA & CUSUM
-  subgraph M1[EWMA & CUSUM Control Charts]
-    direction TB
-    C --> E1[EWMA: alpha smoothing, L limits, UCL/LCL = mu0 ± L·sigma]
-    E1 --> E2[Signal when EWMA outside limits]
+  C --> S[CUSUM: k = shift/2, h = decision interval]
+  S --> S_sig[Signal: cp > h or cm > h]
 
-    C --> C1[CUSUM: k = shift/2, h = decision interval, track cp and cm]
-    C1 --> C2[Signal when cp > h or cm > h]
-  end
+  C --> R[Rolling SPC: rolling mean/std over window w]
+  R --> R_sig[Signal: |Z| > threshold; show +/- 3*std band]
 
-  %% Rolling SPC
-  subgraph M2[Rolling SPC (Z-Score Monitoring)]
-    direction TB
-    C --> R1[Rolling mean and std over window w]
-    R1 --> R2[Z-score = (x - mean)/std]
-    R2 --> R3[Outlier when |Z| > threshold, ±3σ band shown]
-  end
+  C --> RC[Rolling correlation: Pearson r over window w]
+  RC --> RC_sig[Signal: p-value < alpha]
 
-  %% Rolling Correlation
-  subgraph M3[Rolling Correlation (Bivariate SPC)]
-    direction TB
-    C --> RC1[Inputs: feature_x and feature_y]
-    RC1 --> RC2[Compute Pearson r within window w]
-    RC2 --> RC3[Calculate p-value via t-test]
-    RC3 --> RC4[Significant if p < alpha]
-  end
-
-  %% Outputs
-  E2 --> O
-  C2 --> O
-  R3 --> O
-  RC4 --> O
-
-  subgraph O[Outputs and Interpretation]
-    direction TB
-    O1[Charts: EWMA/CUSUM, rolling mean ±3σ, rolling correlation]
-    O2[Tables: Alerts and outliers with labels and timestamps]
-    O3[Interpretation: EWMA detects subtle shifts, CUSUM persistent drifts, Rolling SPC short anomalies, Rolling Corr stability of relationships]
-  end
+  E_sig --> O[Outputs: charts and alert table]
+  S_sig --> O
+  R_sig --> O
+  RC_sig --> O
 
