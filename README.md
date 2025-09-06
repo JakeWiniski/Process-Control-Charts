@@ -80,7 +80,7 @@ This repository contains Python implementations of statistical process control (
 ```mermaid
 flowchart TD
   A[Data preparation: load CSV, parse dates, clean numeric, optional filters] --> B[Baseline estimation: first N points to compute mu0 and sigma0]
-  B --> C{Choose method}
+  B --> C{Method}
 
   C --> E[EWMA: alpha and L define limits from mu0 and sigma]
   E --> E_sig[Signal when EWMA is outside limits]
