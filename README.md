@@ -79,23 +79,22 @@ This repository contains Python implementations of statistical process control (
 
 ```mermaid
 flowchart TD
-  A[Data preparation: load CSV, parse dates, clean numeric, optional filters] --> B[Baseline estimation: first N points -> mu0, sigma0]
+  A[Data preparation: load CSV, parse dates, clean numeric, optional filters] --> B[Baseline estimation: first N points to compute mu0 and sigma0]
   B --> C{Choose method}
 
-  C --> E[EWMA: alpha, L -> limits from mu0 and sigma]
-  E --> E_sig[Signal: EWMA outside limits]
+  C --> E[EWMA: alpha and L define limits from mu0 and sigma]
+  E --> E_sig[Signal when EWMA is outside limits]
 
-  C --> S[CUSUM: k = shift/2, h = decision interval]
-  S --> S_sig[Signal: cp > h or cm > h]
+  C --> S[CUSUM: parameters k and h]
+  S --> S_sig[Signal when cp exceeds h or cm exceeds h]
 
-  C --> R[Rolling SPC: rolling mean/std over window w]
-  R --> R_sig[Signal: |Z| > threshold; show +/- 3*std band]
+  C --> R[Rolling SPC: rolling mean and std over window w]
+  R --> R_sig[Signal when abs Z is greater than threshold; show plus or minus 3 std band]
 
   C --> RC[Rolling correlation: Pearson r over window w]
-  RC --> RC_sig[Signal: p-value < alpha]
+  RC --> RC_sig[Signal when p value is less than alpha]
 
   E_sig --> O[Outputs: charts and alert table]
   S_sig --> O
   R_sig --> O
   RC_sig --> O
-
