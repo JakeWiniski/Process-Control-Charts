@@ -77,51 +77,52 @@ This repository contains Python implementations of statistical process control (
 - Point `file_path` to your dataset.  
 - Tune parameters (`α`, `L`, `k`, `h`, `window`, `z_thresh`, `alpha`) based on process sensitivity.  
 
+```mermaid
 flowchart TD
-  A[Data Preparation\n• Load CSV → pandas\n• Parse date/index\n• Clean/coerce numeric (handles %)\n• Optional filters (date/status)] --> B[Baseline Estimation\n• Use first N points\n• μ₀ (mean), σ₀ (std)]
+  A[Data Preparation<br/>• Load CSV → pandas<br/>• Parse date/index<br/>• Clean/coerce numeric (handles %)<br/>• Optional filters (date/status)] --> B[Baseline Estimation<br/>• Use first N points<br/>• μ₀ (mean), σ₀ (std)]
 
   B --> C{Choose Method}
 
   %% EWMA & CUSUM
   subgraph M1[EWMA & CUSUM Control Charts]
     direction TB
-    C --> E1[EWMA\n• α (smoothing)\n• L (limits)\nCompute:\nEWMA_t\nUCL/LCL = μ₀ ± L·σ_EWMA]
+    C --> E1[EWMA<br/>• α (smoothing)<br/>• L (limits)<br/>Compute EWMA_t<br/>UCL/LCL = μ₀ ± L·σ_EWMA]
     E1 --> E2[Signal: EWMA_t outside UCL/LCL]
 
-    C --> C1[CUSUM (two-sided)\n• k = shift/2\n• h = decision interval\nCompute:\ncp_t, cm_t (cumulative deviations)]
+    C --> C1[CUSUM (two-sided)<br/>• k = shift/2<br/>• h = decision interval<br/>Compute cp_t, cm_t (cumulative deviations)]
     C1 --> C2[Signal: cp_t > h or cm_t > h]
   end
 
   %% Rolling SPC
   subgraph M2[Rolling SPC (Z-Score Monitoring)]
     direction TB
-    C --> R1[Rolling Stats (window = w)\nμ_w, σ_w]
+    C --> R1[Rolling Stats (window = w)<br/>μ_w, σ_w]
     R1 --> R2[Z = (x - μ_w)/σ_w]
-    R2 --> R3[Outlier: |Z| > z_thresh\n±3σ band for context]
+    R2 --> R3[Outlier: |Z| > z_thresh<br/>±3σ band for context]
   end
 
   %% Rolling Correlation
   subgraph M3[Rolling Correlation (Bivariate SPC)]
     direction TB
     C --> RC1[Inputs: feature_x, feature_y]
-    RC1 --> RC2[Within window w:\nPearson r]
-    RC2 --> RC3[p-value via t-test\n(df = w - 2)]
+    RC1 --> RC2[Within window w: Pearson r]
+    RC2 --> RC3[p-value via t-test (df = w - 2)]
     RC3 --> RC4[Significant if p < α]
   end
 
   %% Outputs
-  E2 --> O[Outputs]
+  E2 --> O
   C2 --> O
   R3 --> O
   RC4 --> O
 
   subgraph O[Outputs & Interpretation]
     direction TB
-    O1[Charts:\n• EWMA/CUSUM with limits\n• Rolling mean ±3σ band\n• Rolling r colored by significance]
-    O2[Tables:\n• Alert/Outlier rows with labels & timestamps]
-    O3[Interpretation:\n• EWMA → subtle mean shifts\n• CUSUM → persistent drifts\n• Rolling SPC → short-term anomalies\n• Rolling Corr → stability of X–Y relation]
+    O1[Charts:<br/>• EWMA/CUSUM with limits<br/>• Rolling mean ±3σ band<br/>• Rolling r colored by significance]
+    O2[Tables:<br/>• Alert/Outlier rows with labels & timestamps]
+    O3[Interpretation:<br/>• EWMA → subtle mean shifts<br/>• CUSUM → persistent drifts<br/>• Rolling SPC → short-term anomalies<br/>• Rolling Corr → stability of X–Y relation]
   end
 
   %% Notes
   classDef note fill:#f7f7f7,stroke:#bbb,color:#333;
-  N1:::note --- N1[(Tune params per use-case:\nα, L, k, h, w, z_thresh, α (sig))] --- O
+  N1:::note --- N1[(Tune parameters:<br/>α, L, k, h, w, z_thresh, α (sig))] --- O
