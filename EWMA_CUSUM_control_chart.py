@@ -67,8 +67,22 @@ if FILTERS:
             mask &= (df[c] == allowed)
     df = df[mask].copy()
 
-# Parse time column and drop rows with bad/missing values
+# Parse time column
 df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
+
+# Coerce the value column to numeric:
+# - If it's a string with '%' (e.g., "85%"), strip the sign and convert
+# - Otherwise convert directly; non-numeric entries become NaN and are dropped below
+if df[value_col].dtype == object:
+    s = df[value_col].astype(str).str.strip()
+    if s.str.contains("%").any():
+        df[value_col] = pd.to_numeric(s.str.replace("%", "", regex=False), errors="coerce")
+    else:
+        df[value_col] = pd.to_numeric(s, errors="coerce")
+else:
+    df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
+
+# Drop rows with bad/missing values
 df = df.dropna(subset=[time_col, value_col]).copy()
 
 # Optional time filter
@@ -112,8 +126,22 @@ else:
 # =========================
 # --- EWMA ---
 # =========================
-ewma = df[value_col].ewm(alpha=alpha, adjust=False).mean()
-sigma_ewma = sigma0 * np.sqrt(alpha / (2.0 - alpha))
+# Seed the EWMA at the baseline mean (z_0 = mu0), the textbook initialization,
+# then apply the recursion z_t = alpha*x_t + (1 - alpha)*z_{t-1}. This anchors
+# the statistic to the baseline center rather than to the first observation.
+vals = df[value_col].to_numpy()
+ewma = np.empty(len(vals))
+prev = mu0
+for i, xv in enumerate(vals):
+    prev = alpha * xv + (1.0 - alpha) * prev
+    ewma[i] = prev
+
+# Time-varying control limits. The EWMA variance grows from 0 toward its
+# steady-state value, so the exact limits are narrower for early points and
+# widen to the asymptotic sigma0*sqrt(alpha/(2-alpha)) as t increases.
+t_idx = np.arange(1, len(vals) + 1)
+var_factor = (alpha / (2.0 - alpha)) * (1.0 - (1.0 - alpha) ** (2 * t_idx))
+sigma_ewma = sigma0 * np.sqrt(var_factor)
 ucl_ewma = mu0 + L * sigma_ewma
 lcl_ewma = mu0 - L * sigma_ewma
 ewma_signal = (ewma > ucl_ewma) | (ewma < lcl_ewma)
@@ -158,8 +186,8 @@ plt.figure(figsize=(14, 6))
 plt.plot(x, df[value_col], marker='o', label=value_col)
 plt.plot(x, ewma, label=f"EWMA (alpha={alpha})")
 plt.axhline(mu0, linestyle="--", label="Center (mu0)")
-plt.axhline(ucl_ewma, linestyle="--", label=f"UCL (L={L})")
-plt.axhline(lcl_ewma, linestyle="--", label=f"LCL (L={L})")
+plt.plot(x, ucl_ewma, linestyle="--", color="tab:red", label=f"UCL (L={L})")
+plt.plot(x, lcl_ewma, linestyle="--", color="tab:red", label=f"LCL (L={L})")
 plt.scatter(x[ewma_signal], ewma[ewma_signal], s=80, label="EWMA Signal")
 plt.title(f"EWMA Control Chart – {value_col} {title_suffix}".strip())
 plt.xlabel("Index/Label")

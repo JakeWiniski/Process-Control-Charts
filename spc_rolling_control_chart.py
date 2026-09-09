@@ -18,7 +18,7 @@ min_date = None                      # e.g., "2025-01-01" or None
 
 # Rolling SPC params
 window  = 7                          # rolling window size (in rows)
-z_thresh = 1.645                     # |z| > z_thresh -> outlier (≈90% two-sided); adjust as needed
+z_thresh = 3.0                       # |z| > z_thresh -> outlier; 3.0 = conventional ±3σ SPC limits (~99.7%)
 
 # Plot options
 title_text = f"SPC Chart – {value_col}"
@@ -69,8 +69,13 @@ else:
 # =========================
 # Rolling SPC calculation
 # =========================
-df["rolling_mean"] = df[value_col].rolling(window=window, min_periods=window).mean()
-df["rolling_std"]  = df[value_col].rolling(window=window, min_periods=window).std(ddof=1)
+# Judge each point against the `window` points that PRECEDE it (shift by 1) so a
+# point never contributes to its own mean/std. Including the current point would
+# pull the mean toward it and inflate the std, dampening the z-score of the very
+# anomaly we want to detect.
+prior = df[value_col].shift(1)
+df["rolling_mean"] = prior.rolling(window=window, min_periods=window).mean()
+df["rolling_std"]  = prior.rolling(window=window, min_periods=window).std(ddof=1)
 
 # Avoid divide-by-zero; mark z only where std > 0
 valid = df["rolling_std"] > 0
@@ -87,10 +92,12 @@ plt.figure(figsize=(14, 6))
 plt.plot(x, df[value_col], label=value_col, marker='o')
 plt.plot(x, df["rolling_mean"], label=f"{window}-point Rolling Mean", color="orange")
 
-# Control band: ±3σ around rolling mean (only where available)
-upper = df["rolling_mean"] + 3 * df["rolling_std"]
-lower = df["rolling_mean"] - 3 * df["rolling_std"]
-plt.fill_between(x, lower, upper, where=~(upper.isna() | lower.isna()), color="orange", alpha=0.2, label="±3σ Control Limits")
+# Control band: ±z_thresh·σ around rolling mean (only where available).
+# The band uses the same z_thresh as the outlier test above so that any point
+# flagged red falls exactly outside the shaded band (band and logic stay consistent).
+upper = df["rolling_mean"] + z_thresh * df["rolling_std"]
+lower = df["rolling_mean"] - z_thresh * df["rolling_std"]
+plt.fill_between(x, lower, upper, where=~(upper.isna() | lower.isna()), color="orange", alpha=0.2, label=f"±{z_thresh}σ Control Limits")
 
 # Outliers
 plt.scatter(x[df["outlier"]], df.loc[df["outlier"], value_col], color="red", s=80, label="Outliers")

@@ -9,20 +9,20 @@ This repository contains Python implementations of statistical process control (
    - Load CSV file(s) into a `pandas` DataFrame.  
    - Parse timestamp or index columns.  
    - Clean and coerce numeric values (handles `%` strings).  
-   - Apply optional filters (e.g., by date or status).  
+   - Apply optional filters (a minimum date in every script; the EWMA/CUSUM script also supports arbitrary column-value filters via `FILTERS`).  
 
-2. **Baseline Estimation**  
-   - Use the first *N* observations (configurable) to compute the mean (`μ₀`) and standard deviation (`σ₀`).  
-   - Provides reference values for control limits.
+2. **Baseline Estimation** *(EWMA & CUSUM only)*  
+   - Use the first *N* observations (`baseline_window`, configurable) to compute the mean (`μ₀`) and standard deviation (`σ₀`).  
+   - Provides the fixed reference values for the EWMA/CUSUM control limits. (The rolling SPC and rolling correlation charts instead recompute statistics over a moving window.)
 
 3. **Control Chart Methods**  
-   - **EWMA & CUSUM Control Charts** (`control_charts_generic.py`)  
-   - **Rolling Statistical Process Control** (`spc_rolling_generic.py`)  
-   - **Rolling Correlation Analysis** (`rolling_correlation_spc_generic.py`)  
+   - **EWMA & CUSUM Control Charts** (`EWMA_CUSUM_control_chart.py`)  
+   - **Rolling Statistical Process Control** (`spc_rolling_control_chart.py`)  
+   - **Rolling Correlation Analysis** (`rolling_correlation_control_chart.py`)  
 
 4. **Visualization**  
    - Generate control charts with annotated signals.  
-   - Provide outlier/signal summary tables for interpretation.
+   - The EWMA & CUSUM script also prints a combined alert table of flagged points; the rolling SPC and rolling correlation scripts communicate signals through the plot (colored/marked points).
 
 ---
 
@@ -30,8 +30,8 @@ This repository contains Python implementations of statistical process control (
 
 ### 1. EWMA (Exponentially Weighted Moving Average)
 - **Purpose**: Detect small, sustained shifts in the process mean.  
-- **Method**: Weighted moving average of the selected metric with smoothing factor `α`.  
-- **Control Limits**: Upper and lower limits at `μ₀ ± Lσ`.  
+- **Method**: Weighted moving average of the selected metric with smoothing factor `α`, seeded at the baseline mean (`z₀ = μ₀`).  
+- **Control Limits**: Time-varying limits at `μ₀ ± L·σ_EWMA(t)`, where `σ_EWMA(t) = σ₀·√((α/(2−α))·(1−(1−α)^{2t}))`. Limits are tighter for the earliest points and widen to the steady-state value `σ₀·√(α/(2−α))`.  
 - **Signals**: Points outside the control limits indicate potential process drift.
 
 ### 2. CUSUM (Cumulative Sum)
@@ -41,14 +41,14 @@ This repository contains Python implementations of statistical process control (
 
 ### 3. Rolling SPC (Z-Score Monitoring)
 - **Purpose**: Identify short-term outliers against recent process behavior.  
-- **Method**: Compute rolling mean and standard deviation over a fixed window.  
-- **Control Limits**: ±3σ band around the rolling mean.  
-- **Signals**: Observations with |Z| > threshold (default 1.645 for ~90% CI) flagged as outliers.
+- **Method**: For each point, compute the mean and standard deviation of the `window` points that *precede* it, then z-score the point against that history (the point is excluded from its own window so it can't mask its own anomaly).  
+- **Control Limits**: ±`z_thresh`σ band around the rolling mean (default 3.0 = conventional ±3σ, ~99.7%), matching the outlier test so flagged points fall outside the band.  
+- **Signals**: Observations with |Z| > `z_thresh` flagged as outliers.
 
 ### 4. Rolling Correlation (Bivariate SPC)
 - **Purpose**: Track stability of the linear relationship between two features over time.  
 - **Method**: Compute rolling Pearson correlation coefficient `r` within a window, test significance using Student’s t-distribution.  
-- **Signals**: Highlights when the correlation between features is statistically significant (p < α).
+- **Signals**: Highlights windows where the correlation is nominally significant (p < α). Treat these flags as **descriptive**, not a controlled test: the windows overlap (so adjacent p-values are correlated) and running one test per window inflates false positives (~`α·N` chance flags). Read stretches of flagged windows rather than isolated ones; tighten `α` (e.g. Bonferroni `α/N`) for a stricter view.
 
 ---
 
@@ -73,28 +73,28 @@ This repository contains Python implementations of statistical process control (
 ---
 
 ## Usage
-- Adjust column names (`date_col`, `value_col`, `x_col`, `y_col`, etc.) in the scripts.  
+- Adjust column names (`time_col`/`date_col`, `value_col`, `x_col`, `y_col`, etc.) in the scripts.  
 - Point `file_path` to your dataset.  
 - Tune parameters (`α`, `L`, `k`, `h`, `window`, `z_thresh`, `alpha`) based on process sensitivity.  
 
 ```mermaid
 flowchart TD
-  A[Data preparation: load CSV, parse dates, clean numeric, optional filters] --> B[Baseline estimation: first N points to compute mu0 and sigma0]
-  B --> C{Method}
+  A[Data preparation: load CSV, parse dates, clean numeric, optional filters] --> C{Method}
 
-  C --> E[EWMA: alpha and L define limits from mu0 and sigma]
+  C --> B[Baseline estimation EWMA/CUSUM only: first N points to compute mu0 and sigma0]
+  B --> E[EWMA: alpha and L define time-varying limits from mu0 and sigma, seeded at mu0]
   E --> E_sig[Signal when EWMA is outside limits]
 
-  C --> S[CUSUM: parameters k and h]
+  B --> S[CUSUM: parameters k and h]
   S --> S_sig[Signal when cp exceeds h or cm exceeds h]
 
-  C --> R[Rolling SPC: rolling mean and std over window w]
-  R --> R_sig[Signal when abs Z is greater than threshold; show plus or minus 3 std band]
+  C --> R[Rolling SPC: mean and std over the w points preceding each point]
+  R --> R_sig[Signal when abs Z exceeds z_thresh; band is plus or minus z_thresh std, default 3]
 
   C --> RC[Rolling correlation: Pearson r over window w]
   RC --> RC_sig[Signal when p value is less than alpha]
 
-  E_sig --> O[Outputs: charts and alert table]
+  E_sig --> O[Outputs: charts; alert table for EWMA/CUSUM]
   S_sig --> O
   R_sig --> O
   RC_sig --> O

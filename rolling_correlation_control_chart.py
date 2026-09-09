@@ -68,6 +68,17 @@ if N < 2:
 # =========================
 # Rolling correlation with significance
 # =========================
+# NOTE: The per-window p-value below is a valid single-window t-test, but the
+# `sig` flags across the series should be read as DESCRIPTIVE, not as a
+# controlled hypothesis test. Two reasons:
+#   1) Multiple testing - we run ~N tests at level `alpha`, so purely by chance
+#      roughly alpha*N windows will flag even if the true correlation is zero.
+#   2) Overlapping windows - adjacent windows share window-1 points, so their
+#      p-values are strongly autocorrelated and not independent.
+# The flags are useful for spotting *stretches* of apparent significance; do not
+# interpret a single flagged window as a confirmed relationship. For a stricter
+# read, lower `alpha` (e.g. a Bonferroni-style alpha/N) or require a run of
+# consecutive significant windows.
 vals_x = df[x_col].to_numpy()
 vals_y = df[y_col].to_numpy()
 
